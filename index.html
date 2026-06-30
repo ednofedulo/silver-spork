@@ -32,8 +32,8 @@
           <h1>Work Schedule Generator</h1>
           <p class="hero-copy">
             Generate weekday time entries with natural clock-in, lunch, and
-            clock-out variation. Copy straight into Excel or download a text
-            summary.
+            clock-out variation. Review five summaries, then copy the option
+            you want straight into Excel.
           </p>
         </div>
         <div class="hero-stats" aria-label="Generated schedule pattern">
@@ -75,41 +75,61 @@
             </div>
           </div>
 
-          <div class="col-12 col-md-6">
-            <div class="field-card">
-              <label for="year" class="form-label">Year</label>
-              <div class="control-shell">
-                <span class="control-icon" aria-hidden="true">
-                  <i class="bi bi-calendar2-week"></i>
-                </span>
-                <input
-                  id="year"
-                  class="form-control pretty-control"
-                  type="number"
-                  min="1900"
-                  max="2100"
-                  placeholder="Enter year"
-                  required
-                >
+          <div class="col-12">
+            <div class="control-grid">
+              <div class="field-card compact-field-card state-field">
+                <label for="state" class="form-label">State</label>
+                <div class="control-shell compact-control">
+                  <span class="control-icon" aria-hidden="true">
+                    <i class="bi bi-geo-alt"></i>
+                  </span>
+                  <select id="state" class="form-select pretty-control" required></select>
+                </div>
               </div>
-            </div>
-          </div>
 
-          <div class="col-12 col-md-6">
-            <div class="field-card">
-              <label for="hourlyRate" class="form-label">Hourly Rate <span>(optional)</span></label>
-              <div class="control-shell">
-                <span class="control-icon money-icon" aria-hidden="true">
-                  <i class="bi bi-cash-stack"></i>
-                </span>
-                <input
-                  id="hourlyRate"
-                  class="form-control pretty-control"
-                  type="text"
-                  inputmode="numeric"
-                  autocomplete="off"
-                  placeholder="$0.00"
-                >
+              <div class="field-card compact-field-card city-field">
+                <label for="city" class="form-label">City</label>
+                <div class="control-shell compact-control">
+                  <span class="control-icon" aria-hidden="true">
+                    <i class="bi bi-buildings"></i>
+                  </span>
+                  <select id="city" class="form-select pretty-control" required></select>
+                </div>
+              </div>
+
+              <div class="field-card compact-field-card year-field">
+                <label for="year" class="form-label">Year</label>
+                <div class="control-shell compact-control">
+                  <span class="control-icon" aria-hidden="true">
+                    <i class="bi bi-calendar2-week"></i>
+                  </span>
+                  <input
+                    id="year"
+                    class="form-control pretty-control"
+                    type="number"
+                    min="2010"
+                    max="2026"
+                    placeholder="Enter year"
+                    required
+                  >
+                </div>
+              </div>
+
+              <div class="field-card compact-field-card rate-field">
+                <label for="hourlyRate" class="form-label">Hourly Rate <span>(optional)</span></label>
+                <div class="control-shell compact-control">
+                  <span class="control-icon money-icon" aria-hidden="true">
+                    <i class="bi bi-cash-stack"></i>
+                  </span>
+                  <input
+                    id="hourlyRate"
+                    class="form-control pretty-control"
+                    type="text"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    placeholder="$0.00"
+                  >
+                </div>
               </div>
             </div>
           </div>
@@ -118,7 +138,7 @@
             <div id="monthPreview" class="month-preview d-none" aria-live="polite"></div>
           </div>
 
-          <div class="col-12">
+          <div class="col-12 action-cell">
             <button class="btn btn-primary btn-lg w-100 generate-button" type="submit">
               <i class="bi bi-magic" aria-hidden="true"></i>
               Generate Work Schedule
@@ -127,42 +147,15 @@
         </form>
       </section>
 
-      <section id="results" class="results-grid d-none" aria-live="polite">
-        <article class="panel summary-panel">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">Results</p>
-              <h2>Summary</h2>
-            </div>
+      <section id="results" class="panel results-panel d-none" aria-live="polite">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Results</p>
+            <h2>Generated Options</h2>
           </div>
-          <div id="summary" class="summary"></div>
-        </article>
-
-        <article class="panel entries-panel">
-          <div class="entries-header">
-            <div>
-              <p class="eyebrow">Spreadsheet-ready</p>
-              <h2>Time Entries</h2>
-            </div>
-            <div class="action-row">
-              <button id="copyButton" class="btn btn-outline-secondary" type="button">
-                <i class="bi bi-clipboard" aria-hidden="true"></i>
-                Copy
-              </button>
-              <button id="downloadButton" class="btn btn-outline-secondary" type="button">
-                <i class="bi bi-download" aria-hidden="true"></i>
-                Download
-              </button>
-            </div>
-          </div>
-          <textarea
-            id="timeEntries"
-            class="form-control entries-box"
-            readonly
-            spellcheck="false"
-            placeholder="Generated work times will appear here..."
-          ></textarea>
-        </article>
+          <span class="badge text-bg-light">5 schedules</span>
+        </div>
+        <div id="summaries" class="summary-options"></div>
       </section>
     </main>
 

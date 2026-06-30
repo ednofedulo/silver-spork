@@ -13,38 +13,44 @@ const months = [
   { value: "12", name: "December", days: 31 },
 ]
 
+const HOLIDAY_YEAR_MIN = 2010
+const HOLIDAY_YEAR_MAX = 2026
+
 const elements = {
   form: document.querySelector("#scheduleForm"),
   month: document.querySelector("#month"),
   monthPills: document.querySelector("#monthPills"),
+  state: document.querySelector("#state"),
+  city: document.querySelector("#city"),
   year: document.querySelector("#year"),
   hourlyRate: document.querySelector("#hourlyRate"),
   monthPreview: document.querySelector("#monthPreview"),
   results: document.querySelector("#results"),
-  summary: document.querySelector("#summary"),
-  timeEntries: document.querySelector("#timeEntries"),
-  copyButton: document.querySelector("#copyButton"),
-  downloadButton: document.querySelector("#downloadButton"),
+  summaries: document.querySelector("#summaries"),
   toast: document.querySelector("#toast"),
 }
 
-let generatedTimes = ""
-let workSummary = null
+let scheduleOptions = []
 let toastTimer = null
 let hourlyRateCents = 0
+let states = []
+let cities = []
+let holidayCache = new Map()
+let activeHolidayDates = new Set()
 
-function init() {
+async function init() {
   populateMonths()
   selectMonth(new Date().getMonth() + 1)
   elements.year.value = new Date().getFullYear().toString()
   loadHourlyRate()
+  await loadLocationData()
   updateMonthPreview()
 
   elements.form.addEventListener("submit", handleGenerate)
+  elements.state.addEventListener("change", () => populateCities(elements.state.value))
   elements.year.addEventListener("input", updateMonthPreview)
   elements.hourlyRate.addEventListener("input", handleHourlyRateInput)
-  elements.copyButton.addEventListener("click", copyToClipboard)
-  elements.downloadButton.addEventListener("click", downloadAsFile)
+  elements.summaries.addEventListener("click", handleSummaryAction)
 }
 
 function populateMonths() {
@@ -71,6 +77,65 @@ function selectMonth(monthValue) {
   }
 
   updateMonthPreview()
+}
+
+async function loadLocationData() {
+  try {
+    const [loadedStates, loadedCities] = await Promise.all([
+      fetchJson("data/localizacao/estados.json"),
+      fetchJson("data/localizacao/municipios.json"),
+    ])
+
+    states = loadedStates
+      .slice()
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
+    cities = loadedCities.map((city) => ({
+      ...city,
+      uf: states.find((state) => state.codigo_uf === city.codigo_uf)?.uf || "",
+    }))
+
+    populateStates()
+    populateCities("SP", "3550308")
+  } catch {
+    showToast("Could not load Brazil state and city data.", true)
+  }
+}
+
+async function fetchJson(path) {
+  const response = await fetch(path)
+  if (!response.ok) {
+    throw new Error(`Could not load ${path}`)
+  }
+  return response.json()
+}
+
+function populateStates() {
+  elements.state.innerHTML = states
+    .map(
+      (state) =>
+        `<option value="${state.uf}" ${state.uf === "SP" ? "selected" : ""}>${state.nome} - ${state.uf}</option>`,
+    )
+    .join("")
+}
+
+function populateCities(uf, preferredCityCode = "") {
+  const stateCities = cities
+    .filter((city) => city.uf === uf)
+    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
+
+  const selectedCity =
+    stateCities.find((city) => city.codigo_ibge.toString() === preferredCityCode) ||
+    stateCities.find((city) => city.capital) ||
+    stateCities[0]
+
+  elements.city.innerHTML = stateCities
+    .map(
+      (city) =>
+        `<option value="${city.codigo_ibge}" ${
+          city.codigo_ibge === selectedCity?.codigo_ibge ? "selected" : ""
+        }>${city.nome}</option>`,
+    )
+    .join("")
 }
 
 function loadHourlyRate() {
@@ -126,41 +191,27 @@ function minutesToDecimalHours(minutes) {
   return Math.round((minutes / 60) * 100) / 100
 }
 
+function randomBetween(min, max) {
+  return min + Math.floor(Math.random() * (max - min + 1))
+}
+
+function minutesToTime(totalMinutes) {
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return formatTime(hours, minutes)
+}
+
 function generateWorkDay() {
-  const clockIn = formatTime(8, 15 + Math.floor(Math.random() * 31))
+  const clockInMinutes = randomBetween(7 * 60 + 50, 8 * 60 + 20)
+  const lunchOutMinutes = randomBetween(11 * 60 + 55, 12 * 60 + 10)
+  const lunchBackMinutes = lunchOutMinutes + randomBetween(118, 125)
+  const targetWorkMinutes = randomBetween(474, 480)
 
-  let lunchOutHour = 11
-  let lunchOutMinute = 45 + Math.floor(Math.random() * 31)
-  if (lunchOutMinute >= 60) {
-    lunchOutHour = 12
-    lunchOutMinute -= 60
-  }
-  const lunchOut = formatTime(lunchOutHour, lunchOutMinute)
-
-  let lunchBackHour = 13
-  let lunchBackMinute = 45 + Math.floor(Math.random() * 31)
-  if (lunchBackMinute >= 60) {
-    lunchBackHour = 14
-    lunchBackMinute -= 60
-  }
-  const lunchBack = formatTime(lunchBackHour, lunchBackMinute)
-
-  const targetWorkMinutes = 474 + Math.floor(Math.random() * 7)
+  const clockIn = minutesToTime(clockInMinutes)
+  const lunchOut = minutesToTime(lunchOutMinutes)
+  const lunchBack = minutesToTime(lunchBackMinutes)
   const morningWork = timeToMinutes(lunchOut) - timeToMinutes(clockIn)
-  const neededAfternoonWork = targetWorkMinutes - morningWork
-  const clockOutMinutes = timeToMinutes(lunchBack) + neededAfternoonWork
-
-  let clockOutHour = Math.floor(clockOutMinutes / 60)
-  let clockOutMinute = clockOutMinutes % 60
-
-  if (clockOutHour === 18 && clockOutMinute === 0) {
-    const adjustment = -5 + Math.floor(Math.random() * 16)
-    const adjustedMinutes = clockOutMinutes + adjustment
-    clockOutHour = Math.floor(adjustedMinutes / 60)
-    clockOutMinute = adjustedMinutes % 60
-  }
-
-  const clockOut = formatTime(clockOutHour, clockOutMinute)
+  const clockOut = minutesToTime(lunchBackMinutes + targetWorkMinutes - morningWork)
   const totalMinutes =
     timeToMinutes(lunchOut) -
     timeToMinutes(clockIn) +
@@ -200,52 +251,113 @@ function updateMonthPreview() {
   elements.monthPreview.innerHTML = `
     <strong>${month.name} ${year}</strong>
     ${dayCount} total days. Weekdays only, tab-separated for Excel.
-    Schedule pattern: Clock In (~8:30 AM), Lunch Out (~12:00 PM), Lunch Back (~2:00 PM), Clock Out (7.9-8h daily).
+    Schedule pattern: Clock In (~8:00 AM), Lunch Out (~12:00 PM), Lunch Back (~2:00 PM), Clock Out (~6:00 PM).
   `
 }
 
-function handleGenerate(event) {
+async function handleGenerate(event) {
   event.preventDefault()
 
-  if (!elements.month.value || !elements.year.value) {
-    showToast("Please select a month and enter a year.", true)
+  if (!elements.month.value || !elements.year.value || !elements.state.value || !elements.city.value) {
+    showToast("Please select a month, year, state, and city.", true)
     return
   }
 
   const monthNumber = Number.parseInt(elements.month.value, 10)
   const yearNumber = Number.parseInt(elements.year.value, 10)
 
-  if (Number.isNaN(yearNumber) || yearNumber < 1900 || yearNumber > 2100) {
-    showToast("Please enter a year between 1900 and 2100.", true)
+  if (Number.isNaN(yearNumber) || yearNumber < HOLIDAY_YEAR_MIN || yearNumber > HOLIDAY_YEAR_MAX) {
+    showToast(`Please enter a year between ${HOLIDAY_YEAR_MIN} and ${HOLIDAY_YEAR_MAX}.`, true)
     return
   }
 
+  activeHolidayDates = await loadHolidayDates(
+    yearNumber,
+    elements.state.value,
+    Number(elements.city.value),
+  )
+
+  scheduleOptions = Array.from({ length: 5 }, (_, index) =>
+    generateScheduleOption(index + 1, monthNumber, yearNumber),
+  )
+  renderResults()
+  showToast("Generated 5 schedule options.")
+}
+
+function generateScheduleOption(optionNumber, monthNumber, yearNumber) {
   const daysInMonth = getDaysInMonth(monthNumber, yearNumber)
   const lines = []
   let totalWorkMinutes = 0
   let workDaysCount = 0
+  let weekdayHolidayCount = 0
 
   for (let day = 1; day <= daysInMonth; day += 1) {
     const currentDate = new Date(yearNumber, monthNumber - 1, day)
     const dayOfWeek = currentDate.getDay()
+    const dateKey = formatHolidayDate(day, monthNumber, yearNumber)
+    const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5
+    const isHoliday = activeHolidayDates.has(dateKey)
 
-    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+    if (isWeekday && !isHoliday) {
       const workDay = generateWorkDay()
       lines.push(workDay.times.join("\t"))
       totalWorkMinutes += workDay.totalMinutes
       workDaysCount += 1
     } else {
+      if (isWeekday && isHoliday) {
+        weekdayHolidayCount += 1
+      }
       lines.push("")
     }
   }
 
-  generatedTimes = lines.join("\n")
-  workSummary = buildSummary(totalWorkMinutes, workDaysCount)
-  renderResults()
-  showToast("Work schedule generated.")
+  return {
+    id: optionNumber,
+    rawValues: lines.join("\n"),
+    summary: buildSummary(optionNumber, totalWorkMinutes, workDaysCount, weekdayHolidayCount),
+  }
 }
 
-function buildSummary(totalWorkMinutes, workDaysCount) {
+async function loadHolidayDates(year, uf, cityCode) {
+  const cacheKey = `${year}-${uf}-${cityCode}`
+  if (holidayCache.has(cacheKey)) {
+    return holidayCache.get(cacheKey)
+  }
+
+  try {
+    const [national, state, municipal] = await Promise.all([
+      loadHolidayFile("nacional", year),
+      loadHolidayFile("estadual", year),
+      loadHolidayFile("municipal", year),
+    ])
+
+    const dates = new Set([
+      ...national.map((holiday) => holiday.data),
+      ...state.filter((holiday) => holiday.uf === uf).map((holiday) => holiday.data),
+      ...municipal
+        .filter((holiday) => Number(holiday.codigo_ibge) === cityCode)
+        .map((holiday) => holiday.data),
+    ])
+
+    holidayCache.set(cacheKey, dates)
+    return dates
+  } catch {
+    showToast(`Holiday data for ${year} is unavailable. Only weekends will be blank.`, true)
+    return new Set()
+  }
+}
+
+async function loadHolidayFile(type, year) {
+  return fetchJson(`data/feriados/${type}/json/${year}.json`)
+}
+
+function formatHolidayDate(day, month, year) {
+  return `${day.toString().padStart(2, "0")}/${month
+    .toString()
+    .padStart(2, "0")}/${year}`
+}
+
+function buildSummary(optionNumber, totalWorkMinutes, workDaysCount, weekdayHolidayCount) {
   const avgDailyMinutes = workDaysCount > 0 ? totalWorkMinutes / workDaysCount : 0
   const totalDecimalHours = minutesToDecimalHours(totalWorkMinutes)
   const avgDecimalHours = minutesToDecimalHours(avgDailyMinutes)
@@ -255,10 +367,11 @@ function buildSummary(totalWorkMinutes, workDaysCount) {
     months.find((item) => item.value === elements.month.value)?.name || "Unknown"
 
   return {
-    title: `${monthName} ${elements.year.value} - Work Summary`,
+    title: `Option ${optionNumber}`,
+    subtitle: `${monthName} ${elements.year.value}`,
     metrics: [
       ["Total Work Time", `${minutesToHours(totalWorkMinutes)} (${totalDecimalHours}h)`],
-      ["Work Days", workDaysCount.toString()],
+      ["Work Days", `${workDaysCount} (${weekdayHolidayCount})`],
       [
         "Average Daily",
         `${minutesToHours(Math.round(avgDailyMinutes))} (${avgDecimalHours}h)`,
@@ -275,56 +388,66 @@ function buildSummary(totalWorkMinutes, workDaysCount) {
 
 function renderResults() {
   elements.results.classList.remove("d-none")
-  elements.timeEntries.value = generatedTimes
-  elements.summary.innerHTML = `
-    <div class="summary-title">${workSummary.title}</div>
-    ${workSummary.metrics
-      .map(
-        ([label, value, className]) => `
-          <div class="summary-metric ${className || ""}">
-            <span>${label}</span>
-            <strong>${value}</strong>
+  elements.summaries.innerHTML = scheduleOptions
+    .map(
+      (option) => `
+      <article class="summary-card">
+        <div class="summary-card-header">
+          <div>
+            <h3>${option.summary.title}</h3>
+            <p>${option.summary.subtitle}</p>
           </div>
-        `,
-      )
-      .join("")}
-  `
+          <button class="btn btn-outline-secondary copy-option-button" type="button" data-option-id="${option.id}">
+            <i class="bi bi-clipboard" aria-hidden="true"></i>
+            Copy
+          </button>
+        </div>
+        <div class="summary">
+          ${option.summary.metrics
+            .map(
+              ([label, value, className]) => `
+                <div class="summary-metric ${className || ""}">
+                  <span>${label}</span>
+                  <strong>${value}</strong>
+                </div>
+              `,
+            )
+            .join("")}
+        </div>
+      </article>
+    `,
+    )
+    .join("")
 }
 
-async function copyToClipboard() {
-  if (!generatedTimes) return
+function handleSummaryAction(event) {
+  const button = event.target.closest(".copy-option-button")
+  if (!button) return
 
-  try {
-    await navigator.clipboard.writeText(generatedTimes)
-    showToast("Work schedule copied. Ready to paste into Excel.")
-  } catch {
-    elements.timeEntries.select()
-    document.execCommand("copy")
-    showToast("Work schedule copied.")
+  const option = scheduleOptions.find((item) => item.id === Number(button.dataset.optionId))
+  if (option) {
+    copyToClipboard(option.rawValues, option.summary.title)
   }
 }
 
-function downloadAsFile() {
-  if (!generatedTimes || !workSummary) return
+async function copyToClipboard(values, title) {
+  if (!values) return
 
-  const monthName =
-    months.find((item) => item.value === elements.month.value)?.name || "Unknown"
-  const summaryText = [
-    workSummary.title,
-    "",
-    ...workSummary.metrics.map(([label, value]) => `${label}: ${value}`),
-  ].join("\n")
-  const content = `${summaryText}\n\n--- Raw Time Data ---\n${generatedTimes}`
-  const blob = new Blob([content], { type: "text/plain" })
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement("a")
-
-  anchor.href = url
-  anchor.download = `work-schedule-${monthName}-${elements.year.value}.txt`
-  document.body.append(anchor)
-  anchor.click()
-  anchor.remove()
-  URL.revokeObjectURL(url)
+  try {
+    await navigator.clipboard.writeText(values)
+    showToast(`${title} copied. Ready to paste into Excel.`)
+  } catch {
+    const textarea = document.createElement("textarea")
+    textarea.value = values
+    textarea.setAttribute("readonly", "")
+    textarea.style.position = "fixed"
+    textarea.style.opacity = "0"
+    document.body.append(textarea)
+    textarea.select()
+    document.execCommand("copy")
+    textarea.remove()
+    showToast(`${title} copied.`)
+  }
 }
 
 function showToast(message, isError = false) {
