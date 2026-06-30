@@ -1,0 +1,10 @@
+{
+  "name": "work-schedule-generator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A vanilla JavaScript work schedule generator.",
+  "scripts": {
+    "dev": "python3 -m http.server 3000",
+    "start": "python3 -m http.server 3000"
+  }
+}
