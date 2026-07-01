@@ -25,6 +25,9 @@ const elements = {
   year: document.querySelector("#year"),
   hourlyRate: document.querySelector("#hourlyRate"),
   monthPreview: document.querySelector("#monthPreview"),
+  holidayConfig: document.querySelector("#holidayConfig"),
+  holidayList: document.querySelector("#holidayList"),
+  holidayCount: document.querySelector("#holidayCount"),
   results: document.querySelector("#results"),
   summaries: document.querySelector("#summaries"),
   toast: document.querySelector("#toast"),
@@ -36,6 +39,7 @@ let hourlyRateCents = 0
 let states = []
 let cities = []
 let holidayCache = new Map()
+let applicableHolidays = []
 let activeHolidayDates = new Set()
 
 async function init() {
@@ -47,10 +51,19 @@ async function init() {
   updateMonthPreview()
 
   elements.form.addEventListener("submit", handleGenerate)
-  elements.state.addEventListener("change", () => populateCities(elements.state.value))
-  elements.year.addEventListener("input", updateMonthPreview)
+  elements.state.addEventListener("change", () => {
+    populateCities(elements.state.value)
+    updateHolidayConfig()
+  })
+  elements.city.addEventListener("change", updateHolidayConfig)
+  elements.year.addEventListener("input", () => {
+    updateMonthPreview()
+    updateHolidayConfig()
+  })
+  elements.holidayList.addEventListener("change", updateActiveHolidayDatesFromInputs)
   elements.hourlyRate.addEventListener("input", handleHourlyRateInput)
   elements.summaries.addEventListener("click", handleSummaryAction)
+  updateHolidayConfig()
 }
 
 function populateMonths() {
@@ -77,6 +90,7 @@ function selectMonth(monthValue) {
   }
 
   updateMonthPreview()
+  updateHolidayConfig()
 }
 
 async function loadLocationData() {
@@ -136,6 +150,18 @@ function populateCities(uf, preferredCityCode = "") {
         }>${city.nome}</option>`,
     )
     .join("")
+}
+
+function canLoadHolidays() {
+  const year = Number.parseInt(elements.year.value, 10)
+  return (
+    elements.month.value &&
+    elements.state.value &&
+    elements.city.value &&
+    !Number.isNaN(year) &&
+    year >= HOLIDAY_YEAR_MIN &&
+    year <= HOLIDAY_YEAR_MAX
+  )
 }
 
 function loadHourlyRate() {
@@ -271,11 +297,10 @@ async function handleGenerate(event) {
     return
   }
 
-  activeHolidayDates = await loadHolidayDates(
-    yearNumber,
-    elements.state.value,
-    Number(elements.city.value),
-  )
+  if (!applicableHolidays.length && canLoadHolidays()) {
+    await updateHolidayConfig()
+  }
+  updateActiveHolidayDatesFromInputs()
 
   scheduleOptions = Array.from({ length: 5 }, (_, index) =>
     generateScheduleOption(index + 1, monthNumber, yearNumber),
@@ -318,33 +343,134 @@ function generateScheduleOption(optionNumber, monthNumber, yearNumber) {
   }
 }
 
-async function loadHolidayDates(year, uf, cityCode) {
+async function updateHolidayConfig() {
+  if (!canLoadHolidays()) {
+    applicableHolidays = []
+    activeHolidayDates = new Set()
+    elements.holidayConfig.classList.add("d-none")
+    elements.holidayList.innerHTML = ""
+    elements.holidayCount.textContent = "0 holidays"
+    return
+  }
+
+  const year = Number.parseInt(elements.year.value, 10)
+  const month = Number.parseInt(elements.month.value, 10)
+
+  applicableHolidays = await loadApplicableHolidays(
+    year,
+    month,
+    elements.state.value,
+    Number(elements.city.value),
+  )
+
+  renderHolidayConfig()
+  updateActiveHolidayDatesFromInputs()
+}
+
+async function loadApplicableHolidays(year, month, uf, cityCode) {
   const cacheKey = `${year}-${uf}-${cityCode}`
-  if (holidayCache.has(cacheKey)) {
-    return holidayCache.get(cacheKey)
+  let holidays = holidayCache.get(cacheKey)
+
+  if (!holidays) {
+    try {
+      const [national, state, municipal] = await Promise.all([
+        loadHolidayFile("nacional", year),
+        loadHolidayFile("estadual", year),
+        loadHolidayFile("municipal", year),
+      ])
+
+      holidays = mergeHolidays([
+        ...national.map((holiday) => ({ ...holiday, scope: "Federal" })),
+        ...state
+          .filter((holiday) => holiday.uf === uf)
+          .map((holiday) => ({ ...holiday, scope: "State" })),
+        ...municipal
+          .filter((holiday) => Number(holiday.codigo_ibge) === cityCode)
+          .map((holiday) => ({ ...holiday, scope: "City" })),
+      ])
+
+      holidayCache.set(cacheKey, holidays)
+    } catch {
+      showToast(`Holiday data for ${year} is unavailable. Only weekends will be blank.`, true)
+      return []
+    }
   }
 
-  try {
-    const [national, state, municipal] = await Promise.all([
-      loadHolidayFile("nacional", year),
-      loadHolidayFile("estadual", year),
-      loadHolidayFile("municipal", year),
-    ])
+  return holidays.filter((holiday) => Number(holiday.date.slice(3, 5)) === month)
+}
 
-    const dates = new Set([
-      ...national.map((holiday) => holiday.data),
-      ...state.filter((holiday) => holiday.uf === uf).map((holiday) => holiday.data),
-      ...municipal
-        .filter((holiday) => Number(holiday.codigo_ibge) === cityCode)
-        .map((holiday) => holiday.data),
-    ])
+function mergeHolidays(holidays) {
+  const byDate = new Map()
 
-    holidayCache.set(cacheKey, dates)
-    return dates
-  } catch {
-    showToast(`Holiday data for ${year} is unavailable. Only weekends will be blank.`, true)
-    return new Set()
+  for (const holiday of holidays) {
+    const existing = byDate.get(holiday.data) || {
+      date: holiday.data,
+      names: [],
+      scopes: [],
+    }
+
+    if (!existing.names.includes(holiday.nome)) {
+      existing.names.push(holiday.nome)
+    }
+
+    if (!existing.scopes.includes(holiday.scope)) {
+      existing.scopes.push(holiday.scope)
+    }
+
+    byDate.set(holiday.data, existing)
   }
+
+  return [...byDate.values()].sort((a, b) => dateKeyToSortable(a.date) - dateKeyToSortable(b.date))
+}
+
+function dateKeyToSortable(dateKey) {
+  const [day, month, year] = dateKey.split("/").map(Number)
+  return new Date(year, month - 1, day).getTime()
+}
+
+function renderHolidayConfig() {
+  elements.holidayConfig.classList.remove("d-none")
+  elements.holidayCount.textContent = `${applicableHolidays.length} ${
+    applicableHolidays.length === 1 ? "holiday" : "holidays"
+  }`
+
+  if (!applicableHolidays.length) {
+    elements.holidayList.innerHTML = `<div class="holiday-empty">No holidays found for this month and location.</div>`
+    return
+  }
+
+  elements.holidayList.innerHTML = applicableHolidays
+    .map((holiday) => {
+      const inputId = `holiday-${holiday.date.replace(/\D/g, "")}`
+      return `
+        <label class="holiday-option" for="${inputId}">
+          <input id="${inputId}" type="checkbox" value="${holiday.date}" checked>
+          <span class="holiday-option-body">
+            <strong>${escapeHtml(holiday.date)} - ${escapeHtml(holiday.names.join(" / "))}</strong>
+            <small>${escapeHtml(holiday.scopes.join(", "))}</small>
+          </span>
+        </label>
+      `
+    })
+    .join("")
+}
+
+function updateActiveHolidayDatesFromInputs() {
+  activeHolidayDates = new Set(
+    [...elements.holidayList.querySelectorAll('input[type="checkbox"]:checked')].map(
+      (input) => input.value,
+    ),
+  )
+}
+
+function escapeHtml(value) {
+  return value
+    .toString()
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;")
 }
 
 async function loadHolidayFile(type, year) {
