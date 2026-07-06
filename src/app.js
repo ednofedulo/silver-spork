@@ -15,6 +15,9 @@ const months = [
 
 const HOLIDAY_YEAR_MIN = 2010
 const HOLIDAY_YEAR_MAX = 2026
+// Change this value to switch themes without adding user-facing controls.
+const APP_THEME = "yellow-green"
+const APP_THEMES = new Set(["default", "yellow-green"])
 
 const elements = {
   form: document.querySelector("#scheduleForm"),
@@ -43,6 +46,7 @@ let applicableHolidays = []
 let activeHolidayDates = new Set()
 
 async function init() {
+  applyTheme(APP_THEME)
   populateMonths()
   selectMonth(new Date().getMonth() + 1)
   elements.year.value = new Date().getFullYear().toString()
@@ -64,6 +68,10 @@ async function init() {
   elements.hourlyRate.addEventListener("input", handleHourlyRateInput)
   elements.summaries.addEventListener("click", handleSummaryAction)
   updateHolidayConfig()
+}
+
+function applyTheme(themeName) {
+  document.documentElement.dataset.theme = APP_THEMES.has(themeName) ? themeName : "default"
 }
 
 function populateMonths() {
@@ -265,7 +273,7 @@ function updateMonthPreview() {
   const year = Number.parseInt(elements.year.value, 10)
 
   if (!selectedMonth || Number.isNaN(year)) {
-    elements.monthPreview.classList.add("d-none")
+    elements.monthPreview.classList.add("is-hidden")
     elements.monthPreview.textContent = ""
     return
   }
@@ -273,11 +281,10 @@ function updateMonthPreview() {
   const month = months.find((item) => item.value === selectedMonth)
   const dayCount = getDaysInMonth(Number.parseInt(selectedMonth, 10), year)
 
-  elements.monthPreview.classList.remove("d-none")
+  elements.monthPreview.classList.remove("is-hidden")
   elements.monthPreview.innerHTML = `
     <strong>${month.name} ${year}</strong>
-    ${dayCount} total days. Weekdays only, tab-separated for Excel.
-    Schedule pattern: Clock In (~8:00 AM), Lunch Out (~12:00 PM), Lunch Back (~2:00 PM), Clock Out (~6:00 PM).
+    ${dayCount} total days.
   `
 }
 
@@ -286,6 +293,12 @@ async function handleGenerate(event) {
 
   if (!elements.month.value || !elements.year.value || !elements.state.value || !elements.city.value) {
     showToast("Please select a month, year, state, and city.", true)
+    return
+  }
+
+  if (getHourlyRate() <= 0) {
+    showToast("Please enter an hourly rate.", true)
+    elements.hourlyRate.focus()
     return
   }
 
@@ -302,11 +315,12 @@ async function handleGenerate(event) {
   }
   updateActiveHolidayDatesFromInputs()
 
-  scheduleOptions = Array.from({ length: 5 }, (_, index) =>
+  const generatedOptions = Array.from({ length: 10 }, (_, index) =>
     generateScheduleOption(index + 1, monthNumber, yearNumber),
   )
+  scheduleOptions = [selectBestScheduleOption(generatedOptions)]
   renderResults()
-  showToast("Generated 5 schedule options.")
+  showToast("Generated 10 schedules and selected the best one.")
 }
 
 function generateScheduleOption(optionNumber, monthNumber, yearNumber) {
@@ -336,18 +350,28 @@ function generateScheduleOption(optionNumber, monthNumber, yearNumber) {
     }
   }
 
+  const totalEarnings = minutesToDecimalHours(totalWorkMinutes) * getHourlyRate()
+
   return {
     id: optionNumber,
     rawValues: lines.join("\n"),
-    summary: buildSummary(optionNumber, totalWorkMinutes, workDaysCount, weekdayHolidayCount),
+    totalWorkMinutes,
+    totalEarnings,
+    summary: buildSummary(totalWorkMinutes, workDaysCount, weekdayHolidayCount, totalEarnings),
   }
+}
+
+function selectBestScheduleOption(options) {
+  return options.reduce((bestOption, option) =>
+    option.totalEarnings > bestOption.totalEarnings ? option : bestOption,
+  )
 }
 
 async function updateHolidayConfig() {
   if (!canLoadHolidays()) {
     applicableHolidays = []
     activeHolidayDates = new Set()
-    elements.holidayConfig.classList.add("d-none")
+    elements.holidayConfig.classList.add("is-hidden")
     elements.holidayList.innerHTML = ""
     elements.holidayCount.textContent = "0 holidays"
     return
@@ -429,7 +453,7 @@ function dateKeyToSortable(dateKey) {
 }
 
 function renderHolidayConfig() {
-  elements.holidayConfig.classList.remove("d-none")
+  elements.holidayConfig.classList.remove("is-hidden")
   elements.holidayCount.textContent = `${applicableHolidays.length} ${
     applicableHolidays.length === 1 ? "holiday" : "holidays"
   }`
@@ -483,48 +507,33 @@ function formatHolidayDate(day, month, year) {
     .padStart(2, "0")}/${year}`
 }
 
-function buildSummary(optionNumber, totalWorkMinutes, workDaysCount, weekdayHolidayCount) {
+function buildSummary(totalWorkMinutes, workDaysCount, weekdayHolidayCount, totalEarnings) {
   const avgDailyMinutes = workDaysCount > 0 ? totalWorkMinutes / workDaysCount : 0
   const totalDecimalHours = minutesToDecimalHours(totalWorkMinutes)
   const avgDecimalHours = minutesToDecimalHours(avgDailyMinutes)
-  const rate = getHourlyRate()
-  const totalEarnings = totalDecimalHours * rate
-  const monthName =
-    months.find((item) => item.value === elements.month.value)?.name || "Unknown"
 
   return {
-    title: `Option ${optionNumber}`,
-    subtitle: `${monthName} ${elements.year.value}`,
+    copyTitle: "Schedule",
     metrics: [
       ["Total Work Time", `${minutesToHours(totalWorkMinutes)} (${totalDecimalHours}h)`],
       ["Work Days", `${workDaysCount} (${weekdayHolidayCount})`],
-      [
-        "Average Daily",
-        `${minutesToHours(Math.round(avgDailyMinutes))} (${avgDecimalHours}h)`,
-      ],
-      ...(rate > 0
-        ? [
-            ["Hourly Rate", `$${rate.toFixed(2)}`, "earnings"],
-            ["Total Earnings", `$${totalEarnings.toFixed(2)}`, "earnings"],
-          ]
-        : []),
+      ["Average Daily", `${minutesToHours(Math.round(avgDailyMinutes))} (${avgDecimalHours}h)`],
+      ["Total Earnings", formatCurrency(Math.round(totalEarnings * 100))],
     ],
   }
 }
 
 function renderResults() {
-  elements.results.classList.remove("d-none")
+  elements.results.classList.remove("is-hidden")
   elements.summaries.innerHTML = scheduleOptions
     .map(
       (option) => `
       <article class="summary-card">
         <div class="summary-card-header">
-          <div>
-            <h3>${option.summary.title}</h3>
-            <p>${option.summary.subtitle}</p>
-          </div>
-          <button class="btn btn-outline-secondary copy-option-button" type="button" data-option-id="${option.id}">
-            <i class="bi bi-clipboard" aria-hidden="true"></i>
+          <button class="button is-light copy-option-button" type="button" data-option-id="${option.id}">
+            <span class="icon" aria-hidden="true">
+              <i class="fa-solid fa-clipboard"></i>
+            </span>
             Copy
           </button>
         </div>
@@ -552,7 +561,7 @@ function handleSummaryAction(event) {
 
   const option = scheduleOptions.find((item) => item.id === Number(button.dataset.optionId))
   if (option) {
-    copyToClipboard(option.rawValues, option.summary.title)
+    copyToClipboard(option.rawValues, option.summary.copyTitle)
   }
 }
 
