@@ -24,10 +24,14 @@ const elements = {
   form: document.querySelector("#scheduleForm"),
   month: document.querySelector("#month"),
   monthPills: document.querySelector("#monthPills"),
+  monthError: document.querySelector("#monthError"),
   state: document.querySelector("#state"),
   city: document.querySelector("#city"),
   year: document.querySelector("#year"),
+  yearError: document.querySelector("#yearError"),
   hourlyRate: document.querySelector("#hourlyRate"),
+  rateError: document.querySelector("#rateError"),
+  generateButton: document.querySelector("#generateButton"),
   monthPreview: document.querySelector("#monthPreview"),
   holidayConfig: document.querySelector("#holidayConfig"),
   holidayList: document.querySelector("#holidayList"),
@@ -62,6 +66,7 @@ async function init() {
   })
   elements.city.addEventListener("change", updateHolidayConfig)
   elements.year.addEventListener("input", () => {
+    clearFieldError("year")
     updateMonthPreview()
     updateHolidayConfig()
   })
@@ -91,6 +96,7 @@ function populateMonths() {
 
 function selectMonth(monthValue) {
   elements.month.value = monthValue.toString()
+  clearFieldError("month")
 
   for (const pill of elements.monthPills.querySelectorAll(".month-pill")) {
     const isSelected = pill.dataset.month === elements.month.value
@@ -180,6 +186,7 @@ function loadHourlyRate() {
 }
 
 function handleHourlyRateInput() {
+  clearFieldError("rate")
   const digits = elements.hourlyRate.value.replace(/\D/g, "")
   hourlyRateCents = Number.parseInt(digits || "0", 10)
 
@@ -291,37 +298,94 @@ function updateMonthPreview() {
 
 async function handleGenerate(event) {
   event.preventDefault()
+  clearAllFieldErrors()
 
-  if (!elements.month.value || !elements.year.value || !elements.state.value || !elements.city.value) {
-    showToast("Please select a month, year, state, and city.", true)
-    return
-  }
-
-  if (getHourlyRate() <= 0) {
-    showToast("Please enter an hourly rate.", true)
-    elements.hourlyRate.focus()
+  if (!elements.state.value || !elements.city.value) {
+    showToast("Location data is unavailable. Refresh the page and try again.", true)
     return
   }
 
   const monthNumber = Number.parseInt(elements.month.value, 10)
   const yearNumber = Number.parseInt(elements.year.value, 10)
+  let firstInvalidControl = null
+
+  if (Number.isNaN(monthNumber)) {
+    setFieldError("month", "Choose a month.")
+    firstInvalidControl = elements.monthPills.querySelector(".month-pill")
+  }
 
   if (Number.isNaN(yearNumber) || yearNumber < HOLIDAY_YEAR_MIN || yearNumber > HOLIDAY_YEAR_MAX) {
-    showToast(`Please enter a year between ${HOLIDAY_YEAR_MIN} and ${HOLIDAY_YEAR_MAX}.`, true)
+    setFieldError("year", `Enter a year from ${HOLIDAY_YEAR_MIN} to ${HOLIDAY_YEAR_MAX}.`)
+    firstInvalidControl ||= elements.year
+  }
+
+  if (getHourlyRate() <= 0) {
+    setFieldError("rate", "Enter an hourly rate greater than zero.")
+    firstInvalidControl ||= elements.hourlyRate
+  }
+
+  if (firstInvalidControl) {
+    firstInvalidControl.focus()
     return
   }
 
-  if (!applicableHolidays.length && canLoadHolidays()) {
-    await updateHolidayConfig()
-  }
-  updateActiveHolidayDatesFromInputs()
+  setGenerateLoading(true)
 
-  const generatedOptions = Array.from({ length: 10 }, (_, index) =>
-    generateScheduleOption(index + 1, monthNumber, yearNumber),
-  )
-  scheduleOptions = [selectBestScheduleOption(generatedOptions)]
-  renderResults()
-  showToast("Generated 10 schedules and selected the best one.")
+  try {
+    if (!applicableHolidays.length && canLoadHolidays()) {
+      await updateHolidayConfig()
+    }
+    updateActiveHolidayDatesFromInputs()
+
+    const generatedOptions = Array.from({ length: 10 }, (_, index) =>
+      generateScheduleOption(index + 1, monthNumber, yearNumber),
+    )
+    scheduleOptions = [selectBestScheduleOption(generatedOptions)]
+    renderResults()
+    showToast("Generated 10 schedules and selected the best one.")
+  } finally {
+    setGenerateLoading(false)
+  }
+}
+
+function getValidationField(fieldName) {
+  return {
+    month: { control: elements.monthPills, error: elements.monthError },
+    year: { control: elements.year, error: elements.yearError },
+    rate: { control: elements.hourlyRate, error: elements.rateError },
+  }[fieldName]
+}
+
+function setFieldError(fieldName, message) {
+  const field = getValidationField(fieldName)
+  if (!field) return
+
+  field.control.setAttribute("aria-invalid", "true")
+  field.error.textContent = message
+  field.error.classList.remove("is-hidden")
+  field.error.closest(".field-card")?.classList.add("has-field-error")
+}
+
+function clearFieldError(fieldName) {
+  const field = getValidationField(fieldName)
+  if (!field) return
+
+  field.control.removeAttribute("aria-invalid")
+  field.error.textContent = ""
+  field.error.classList.add("is-hidden")
+  field.error.closest(".field-card")?.classList.remove("has-field-error")
+}
+
+function clearAllFieldErrors() {
+  clearFieldError("month")
+  clearFieldError("year")
+  clearFieldError("rate")
+}
+
+function setGenerateLoading(isLoading) {
+  elements.generateButton.disabled = isLoading
+  elements.generateButton.classList.toggle("is-loading", isLoading)
+  elements.generateButton.setAttribute("aria-busy", isLoading.toString())
 }
 
 function generateScheduleOption(optionNumber, monthNumber, yearNumber) {
@@ -569,15 +633,16 @@ function handleSummaryAction(event) {
 
   const option = scheduleOptions.find((item) => item.id === Number(button.dataset.optionId))
   if (option) {
-    copyToClipboard(option.rawValues, option.summary.copyTitle)
+    copyToClipboard(option.rawValues, option.summary.copyTitle, button)
   }
 }
 
-async function copyToClipboard(values, title) {
+async function copyToClipboard(values, title, button) {
   if (!values) return
 
   try {
     await navigator.clipboard.writeText(values)
+    showCopyConfirmation(button)
     showToast(`${title} copied. Ready to paste into Excel.`)
   } catch {
     const textarea = document.createElement("textarea")
@@ -589,8 +654,25 @@ async function copyToClipboard(values, title) {
     textarea.select()
     document.execCommand("copy")
     textarea.remove()
+    showCopyConfirmation(button)
     showToast(`${title} copied.`)
   }
+}
+
+function showCopyConfirmation(button) {
+  if (!button) return
+
+  const originalMarkup = button.innerHTML
+  button.disabled = true
+  button.innerHTML = `
+    <span class="icon" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
+    Copied
+  `
+
+  window.setTimeout(() => {
+    button.innerHTML = originalMarkup
+    button.disabled = false
+  }, 1600)
 }
 
 function showToast(message, isError = false) {

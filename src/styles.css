@@ -154,10 +154,7 @@ body {
   min-height: 100vh;
   margin: 0;
   color: var(--ink);
-  background:
-    linear-gradient(135deg, var(--page-primary-wash), transparent 34%),
-    linear-gradient(315deg, var(--page-accent-wash), transparent 38%),
-    var(--surface);
+  background: var(--surface);
   font-family: var(--app-font);
 }
 
@@ -192,7 +189,7 @@ textarea {
   color: var(--primary);
   font-size: 0.78rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
@@ -202,6 +199,7 @@ h3 {
   margin: 0;
   color: var(--ink);
   letter-spacing: 0;
+  text-wrap: balance;
 }
 
 strong {
@@ -210,9 +208,9 @@ strong {
 
 h1 {
   max-width: 760px;
-  font-size: clamp(2.25rem, 6vw, 4.75rem);
+  font-size: clamp(2.25rem, 4vw, 3.5rem);
   font-weight: var(--display-weight);
-  line-height: 0.96;
+  line-height: 1.02;
 }
 
 h2 {
@@ -226,6 +224,7 @@ h2 {
   color: var(--muted);
   font-size: 1.08rem;
   line-height: 1.6;
+  text-wrap: pretty;
 }
 
 .app-workspace {
@@ -306,7 +305,7 @@ h2 {
   color: var(--label);
   font-size: 0.82rem;
   font-weight: var(--control-weight);
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
 
 .form-label span {
@@ -319,13 +318,20 @@ h2 {
   padding: 14px;
   border: 1px solid var(--border-soft);
   border-radius: var(--component-radius);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--paper) 96%, transparent), color-mix(in srgb, var(--field-bg) 88%, transparent));
-  box-shadow: var(--card-shadow);
+  background: var(--paper);
+  box-shadow: none;
 }
 
 .compact-field-card {
   padding: 12px;
+}
+
+:root:not([data-theme="ios-native"]) .month-card,
+:root:not([data-theme="ios-native"]) .compact-field-card {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .control-grid {
@@ -392,8 +398,8 @@ h2 {
   border-color: var(--primary);
   background: var(--primary);
   color: var(--on-primary);
-  box-shadow: var(--active-shadow);
-  transform: translateY(-1px);
+  box-shadow: none;
+  transform: none;
 }
 
 .month-pill.active strong,
@@ -422,7 +428,7 @@ h2 {
   box-shadow:
     0 0 0 4px var(--field-glow),
     var(--focus-shadow);
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .compact-control {
@@ -557,7 +563,12 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
   gap: 10px;
   border-radius: var(--component-radius);
   font-size: 1.04rem;
-  box-shadow: 0 16px 34px color-mix(in srgb, var(--primary) 26%, transparent);
+  box-shadow: none;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 120ms ease;
+}
+
+.button:disabled {
+  cursor: not-allowed;
 }
 
 .action-cell {
@@ -587,6 +598,41 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
   background: var(--paper);
   color: var(--label);
   font-weight: var(--control-weight);
+  min-height: 44px;
+}
+
+.button:active:not(:disabled),
+.month-pill:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.button:focus-visible,
+.month-pill:focus-visible,
+.pretty-control:focus-visible,
+.holiday-option:focus-within {
+  outline: 3px solid var(--field-glow);
+  outline-offset: 2px;
+}
+
+.form-error {
+  margin: 8px 2px 0;
+  color: var(--danger);
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1.35;
+  text-wrap: pretty;
+}
+
+.has-field-error .control-shell {
+  border-color: var(--danger);
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+}
+
+.month-pills[aria-invalid="true"] {
+  border-radius: var(--component-radius);
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
 }
 
 .copy-option-button.button:hover,
@@ -603,6 +649,7 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
   padding: 16px 18px;
   background: var(--preview-bg);
   color: var(--primary-soft-text);
+  text-wrap: pretty;
 }
 
 .month-preview strong {
@@ -704,6 +751,13 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
 
 .results-panel {
   padding: 24px;
+}
+
+@media (min-width: 1121px) {
+  .app-workspace.has-results .results-panel {
+    position: sticky;
+    top: 24px;
+  }
 }
 
 .summary-options {
@@ -845,8 +899,8 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
 
 .toast-message {
   position: fixed;
-  right: 18px;
-  bottom: 18px;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
   z-index: 20;
   max-width: min(380px, calc(100vw - 36px));
   padding: 14px 16px;
@@ -869,27 +923,12 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
   background: var(--danger);
 }
 
-@keyframes card-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.summary-card,
-.holiday-option {
-  animation: card-in 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .summary-card,
-  .holiday-option {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
@@ -1217,7 +1256,7 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
 }
 
 :root[data-theme="ios-native"] .copy-option-button.button {
-  min-height: 34px;
+  min-height: 44px;
   border: 0;
   border-radius: 9px;
   background: #e5f1ff;
@@ -1243,7 +1282,6 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
   border-radius: 14px;
   background: rgba(28, 28, 30, 0.92);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(16px);
 }
 
 @media (max-width: 760px) {
