@@ -17,9 +17,10 @@ const HOLIDAY_YEAR_MIN = 2010
 const HOLIDAY_YEAR_MAX = 2026
 // Change this value to switch themes without adding user-facing controls.
 const APP_THEME = "yellow-green"
-const APP_THEMES = new Set(["default", "yellow-green"])
+const APP_THEMES = new Set(["default", "yellow-green", "ios-native"])
 
 const elements = {
+  workspace: document.querySelector(".app-workspace"),
   form: document.querySelector("#scheduleForm"),
   month: document.querySelector("#month"),
   monthPills: document.querySelector("#monthPills"),
@@ -512,19 +513,25 @@ function buildSummary(totalWorkMinutes, workDaysCount, weekdayHolidayCount, tota
   const totalDecimalHours = minutesToDecimalHours(totalWorkMinutes)
   const avgDecimalHours = minutesToDecimalHours(avgDailyMinutes)
 
+  const workDaysValue =
+    weekdayHolidayCount > 0
+      ? `${workDaysCount} (${weekdayHolidayCount} holiday${weekdayHolidayCount === 1 ? "" : "s"})`
+      : `${workDaysCount}`
+
   return {
     copyTitle: "Schedule",
     metrics: [
       ["Total Work Time", `${minutesToHours(totalWorkMinutes)} (${totalDecimalHours}h)`],
-      ["Work Days", `${workDaysCount} (${weekdayHolidayCount})`],
+      ["Work Days", workDaysValue],
       ["Average Daily", `${minutesToHours(Math.round(avgDailyMinutes))} (${avgDecimalHours}h)`],
-      ["Total Earnings", formatCurrency(Math.round(totalEarnings * 100))],
+      ["Total Earnings", formatCurrency(Math.round(totalEarnings * 100)), "summary-metric-highlight"],
     ],
   }
 }
 
 function renderResults() {
   elements.results.classList.remove("is-hidden")
+  elements.workspace.classList.add("has-results")
   elements.summaries.innerHTML = scheduleOptions
     .map(
       (option) => `
@@ -537,6 +544,7 @@ function renderResults() {
             Copy
           </button>
         </div>
+        <div class="metrics-divider" aria-hidden="true"></div>
         <div class="summary">
           ${option.summary.metrics
             .map(

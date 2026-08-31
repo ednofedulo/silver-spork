@@ -8,6 +8,13 @@
 
 :root,
 :root[data-theme="default"] {
+  --app-font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --data-font: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  --display-weight: 850;
+  --heading-weight: 800;
+  --control-weight: 750;
+  --panel-radius: 8px;
+  --component-radius: 8px;
   --ink: #172033;
   --muted: #667085;
   --line: #d8dee8;
@@ -91,6 +98,54 @@
   --danger: #9f2d20;
 }
 
+:root[data-theme="ios-native"] {
+  --app-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+  --display-weight: 700;
+  --heading-weight: 700;
+  --control-weight: 600;
+  --panel-radius: 14px;
+  --component-radius: 12px;
+  --ink: #1c1c1e;
+  --muted: #6c6c70;
+  --line: #c6c6c8;
+  --paper: #ffffff;
+  --surface: #f2f2f7;
+  --primary: #007aff;
+  --primary-deep: #0066d6;
+  --on-primary: #ffffff;
+  --accent: #34c759;
+  --warning: #ff9500;
+  --field-bg: #ffffff;
+  --field-glow: rgba(0, 122, 255, 0.22);
+  --shadow: 0 1px 2px rgba(60, 60, 67, 0.1), 0 1px 3px rgba(60, 60, 67, 0.06);
+  --page-primary-wash: transparent;
+  --page-accent-wash: transparent;
+  --panel-border: rgba(60, 60, 67, 0.18);
+  --panel-bg: rgba(255, 255, 255, 0.86);
+  --hero-card-bg: transparent;
+  --label: #3c3c43;
+  --border-soft: #e5e5ea;
+  --border-control: #c6c6c8;
+  --hover-border: #007aff;
+  --primary-soft: #e5f1ff;
+  --primary-soft-text: #005dbf;
+  --active-shadow: 0 2px 6px rgba(0, 122, 255, 0.24);
+  --card-shadow: none;
+  --focus-shadow: 0 1px 3px rgba(60, 60, 67, 0.14);
+  --icon-bg: #e5f1ff;
+  --success: #248a3d;
+  --success-soft: #e4f8e9;
+  --placeholder: #8e8e93;
+  --divider: #e5e5ea;
+  --preview-border: rgba(0, 122, 255, 0.28);
+  --preview-bg: #e5f1ff;
+  --preview-strong: #005dbf;
+  --holiday-selected-border: rgba(0, 122, 255, 0.52);
+  --summary-divider: #e5e5ea;
+  --toast-bg: #1c1c1e;
+  --danger: #ff3b30;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -103,9 +158,7 @@ body {
     linear-gradient(135deg, var(--page-primary-wash), transparent 34%),
     linear-gradient(315deg, var(--page-accent-wash), transparent 38%),
     var(--surface);
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+  font-family: var(--app-font);
 }
 
 button,
@@ -158,13 +211,13 @@ strong {
 h1 {
   max-width: 760px;
   font-size: clamp(2.25rem, 6vw, 4.75rem);
-  font-weight: 850;
+  font-weight: var(--display-weight);
   line-height: 0.96;
 }
 
 h2 {
   font-size: 1.25rem;
-  font-weight: 800;
+  font-weight: var(--heading-weight);
 }
 
 .hero-copy {
@@ -177,14 +230,36 @@ h2 {
 
 .app-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.9fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 24px;
   align-items: start;
 }
 
+.app-workspace.has-results {
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.9fr);
+}
+
+@media (min-width: 1121px) {
+  :root:not([data-theme="ios-native"]) .app-workspace:not(.has-results) .control-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  :root:not([data-theme="ios-native"]) .app-workspace:not(.has-results) .month-pills {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+
+  :root:not([data-theme="ios-native"]) .app-workspace:not(.has-results) .month-pill strong {
+    display: none;
+  }
+
+  :root:not([data-theme="ios-native"]) .app-workspace:not(.has-results) .month-pill span {
+    display: block;
+  }
+}
+
 .panel {
   border: 1px solid var(--panel-border);
-  border-radius: 8px;
+  border-radius: var(--panel-radius);
   background: var(--panel-bg);
   color: var(--ink);
   box-shadow: var(--shadow);
@@ -213,7 +288,13 @@ h2 {
   border: 1px solid var(--border-soft);
   background: var(--field-bg);
   color: var(--label);
-  font-weight: 800;
+  font-weight: var(--heading-weight);
+}
+
+.tag.is-light.tag-accent {
+  border-color: var(--holiday-selected-border);
+  background: var(--primary-soft);
+  color: var(--primary-deep);
 }
 
 .form-label {
@@ -224,7 +305,7 @@ h2 {
   margin-bottom: 10px;
   color: var(--label);
   font-size: 0.82rem;
-  font-weight: 750;
+  font-weight: var(--control-weight);
   letter-spacing: 0.02em;
 }
 
@@ -237,7 +318,7 @@ h2 {
   height: 100%;
   padding: 14px;
   border: 1px solid var(--border-soft);
-  border-radius: 8px;
+  border-radius: var(--component-radius);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--paper) 96%, transparent), color-mix(in srgb, var(--field-bg) 88%, transparent));
   box-shadow: var(--card-shadow);
@@ -268,11 +349,11 @@ h2 {
   min-height: 58px;
   place-items: center;
   border: 1px solid var(--border-control);
-  border-radius: 8px;
+  border-radius: var(--component-radius);
   background: var(--field-bg);
   color: var(--label);
   font: inherit;
-  font-weight: 800;
+  font-weight: var(--heading-weight);
   line-height: 1.1;
   cursor: pointer;
   transition:
@@ -326,7 +407,7 @@ h2 {
   align-items: center;
   min-height: 58px;
   border: 1px solid var(--border-control);
-  border-radius: 8px;
+  border-radius: var(--component-radius);
   background: var(--field-bg);
   transition:
     border-color 160ms ease,
@@ -355,7 +436,7 @@ h2 {
   height: 34px;
   margin-left: 12px;
   place-items: center;
-  border-radius: 8px;
+  border-radius: var(--component-radius);
   background: var(--icon-bg);
   color: var(--primary-deep);
   font-size: 1rem;
@@ -394,7 +475,7 @@ h2 {
   background-color: transparent;
   color: var(--ink);
   font-size: 1rem;
-  font-weight: 750;
+  font-weight: var(--control-weight);
   box-shadow: none;
 }
 
@@ -458,7 +539,7 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
   background-color: var(--primary);
   border-color: var(--primary);
   color: var(--on-primary);
-  font-weight: 750;
+  font-weight: var(--control-weight);
 }
 
 .button.is-primary:hover,
@@ -474,7 +555,7 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  border-radius: 8px;
+  border-radius: var(--component-radius);
   font-size: 1.04rem;
   box-shadow: 0 16px 34px color-mix(in srgb, var(--primary) 26%, transparent);
 }
@@ -502,10 +583,10 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
   align-items: center;
   gap: 8px;
   border-color: var(--border-control);
-  border-radius: 8px;
+  border-radius: var(--component-radius);
   background: var(--paper);
   color: var(--label);
-  font-weight: 750;
+  font-weight: var(--control-weight);
 }
 
 .copy-option-button.button:hover,
@@ -518,7 +599,7 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
 .month-preview {
   border: 1px solid var(--preview-border);
   border-left: 4px solid var(--primary);
-  border-radius: 8px;
+  border-radius: var(--component-radius);
   padding: 16px 18px;
   background: var(--preview-bg);
   color: var(--primary-soft-text);
@@ -533,7 +614,7 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
 .holiday-config {
   padding: 18px;
   border: 1px solid var(--border-soft);
-  border-radius: 8px;
+  border-radius: var(--component-radius);
   background: var(--paper);
   box-shadow: var(--card-shadow);
 }
@@ -550,7 +631,7 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
   margin: 0;
   color: var(--ink);
   font-size: 1.05rem;
-  font-weight: 850;
+  font-weight: var(--heading-weight);
 }
 
 .holiday-list {
@@ -566,7 +647,7 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
   min-width: 0;
   padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--component-radius);
   background: var(--field-bg);
   cursor: pointer;
   transition:
@@ -601,21 +682,21 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
 .holiday-option-body strong {
   color: var(--ink);
   font-size: 0.9rem;
-  font-weight: 800;
+  font-weight: var(--heading-weight);
   line-height: 1.35;
 }
 
 .holiday-option-body small {
   color: var(--muted);
   font-size: 0.78rem;
-  font-weight: 750;
+  font-weight: var(--control-weight);
 }
 
 .holiday-empty {
   grid-column: 1 / -1;
   padding: 12px;
   border: 1px dashed var(--border-control);
-  border-radius: 8px;
+  border-radius: var(--component-radius);
   color: var(--muted);
   font-weight: 700;
   text-align: center;
@@ -638,7 +719,7 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
   gap: 16px;
   padding: 16px;
   border: 1px solid var(--border-soft);
-  border-radius: 8px;
+  border-radius: var(--component-radius);
   background: var(--paper);
   box-shadow: var(--card-shadow);
 }
@@ -708,11 +789,42 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
 
 .summary-metric strong {
   color: var(--ink);
+  font-family: var(--data-font);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
   text-align: right;
 }
 
+.metrics-divider {
+  height: 0;
+  margin: 2px 0 8px;
+  border-top: 1.5px dashed var(--border-control);
+}
+
+.summary-metric-highlight {
+  margin-top: 6px;
+  padding: 14px;
+  border: 0;
+  border-radius: var(--component-radius);
+  background: var(--primary-soft);
+}
+
+.summary-metric-highlight span {
+  color: var(--primary-soft-text);
+}
+
+.summary-metric-highlight strong {
+  color: var(--primary-deep);
+  font-size: 1.35rem;
+}
+
+.summary-card .summary-metric-highlight strong {
+  font-size: 1.2rem;
+}
+
 @media (max-width: 1120px) {
-  .app-workspace {
+  .app-workspace,
+  .app-workspace.has-results {
     grid-template-columns: 1fr;
   }
 
@@ -738,7 +850,7 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
   z-index: 20;
   max-width: min(380px, calc(100vw - 36px));
   padding: 14px 16px;
-  border-radius: 8px;
+  border-radius: var(--component-radius);
   background: var(--toast-bg);
   color: var(--on-primary);
   box-shadow: var(--shadow);
@@ -755,6 +867,30 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
 
 .toast-message.error {
   background: var(--danger);
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.summary-card,
+.holiday-option {
+  animation: card-in 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .summary-card,
+  .holiday-option {
+    animation: none;
+  }
 }
 
 @media (max-width: 860px) {
@@ -797,5 +933,334 @@ input.pretty-control[type="number"]::-webkit-inner-spin-button {
   .month-pill span {
     display: block;
     font-size: 0.86rem;
+  }
+}
+
+/* iOS-style component treatment. This is intentionally scoped to the code-selected theme. */
+:root[data-theme="ios-native"] body {
+  -webkit-font-smoothing: antialiased;
+  background: var(--surface);
+}
+
+:root[data-theme="ios-native"] .app-shell {
+  width: min(1160px, calc(100% - 40px));
+  padding: 28px 0 40px;
+}
+
+:root[data-theme="ios-native"] .hero {
+  padding: 10px 4px 30px;
+}
+
+:root[data-theme="ios-native"] .hero .eyebrow,
+:root[data-theme="ios-native"] .panel-heading .eyebrow,
+:root[data-theme="ios-native"] .holiday-config-header .eyebrow {
+  display: none;
+}
+
+:root[data-theme="ios-native"] h1 {
+  max-width: none;
+  font-size: 2.125rem;
+  line-height: 1.12;
+}
+
+:root[data-theme="ios-native"] h2 {
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+
+:root[data-theme="ios-native"] .hero-copy {
+  max-width: 620px;
+  margin-top: 8px;
+  font-size: 1rem;
+  line-height: 1.42;
+}
+
+:root[data-theme="ios-native"] .app-workspace {
+  gap: 32px;
+}
+
+:root[data-theme="ios-native"] .panel,
+:root[data-theme="ios-native"] .panel:not(.results-panel) {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-theme="ios-native"] .panel-heading {
+  margin: 0 4px 12px;
+}
+
+:root[data-theme="ios-native"] .tag.is-light {
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: #e9e9eb;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+:root[data-theme="ios-native"] .form-stack {
+  gap: 20px;
+}
+
+:root[data-theme="ios-native"] .field-card,
+:root[data-theme="ios-native"] .holiday-config,
+:root[data-theme="ios-native"] .summary-card {
+  border: 0;
+  border-radius: var(--component-radius);
+  background: var(--paper);
+  box-shadow: none;
+}
+
+:root[data-theme="ios-native"] .month-card {
+  padding: 16px;
+}
+
+:root[data-theme="ios-native"] .form-label {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+:root[data-theme="ios-native"] .month-pills {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+:root[data-theme="ios-native"] .month-pill {
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: #e9e9eb;
+  color: var(--primary);
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+:root[data-theme="ios-native"] .month-pill:hover {
+  border-color: transparent;
+  background: #dcecff;
+  color: var(--primary-deep);
+}
+
+:root[data-theme="ios-native"] .month-pill.active {
+  border-color: transparent;
+  background: var(--primary);
+  box-shadow: none;
+  transform: none;
+}
+
+:root[data-theme="ios-native"] .control-grid {
+  display: block;
+  overflow: hidden;
+  border-radius: var(--component-radius);
+  background: var(--paper);
+}
+
+:root[data-theme="ios-native"] .compact-field-card {
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+:root[data-theme="ios-native"] .compact-field-card + .compact-field-card {
+  border-top: 1px solid var(--divider);
+}
+
+:root[data-theme="ios-native"] .compact-field-card .form-label {
+  padding: 12px 16px 0;
+}
+
+:root[data-theme="ios-native"] .control-shell,
+:root[data-theme="ios-native"] .compact-control {
+  min-height: 48px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+:root[data-theme="ios-native"] .control-shell:focus-within {
+  background: #f0f7ff;
+  box-shadow: inset 3px 0 0 var(--primary);
+  transform: none;
+}
+
+:root[data-theme="ios-native"] .control-icon,
+:root[data-theme="ios-native"] .compact-control .control-icon {
+  width: 28px;
+  height: 28px;
+  flex-basis: 28px;
+  margin-left: 16px;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--primary);
+  font-size: 1rem;
+}
+
+:root[data-theme="ios-native"] .money-icon {
+  color: var(--success);
+}
+
+:root[data-theme="ios-native"] .pretty-control,
+:root[data-theme="ios-native"] .pretty-select select.pretty-control,
+:root[data-theme="ios-native"] .pretty-control.input,
+:root[data-theme="ios-native"] .compact-control .pretty-control,
+:root[data-theme="ios-native"] .compact-control .pretty-select select.pretty-control,
+:root[data-theme="ios-native"] .compact-control .pretty-control.input {
+  min-height: 44px;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+:root[data-theme="ios-native"] .pretty-select:not(.is-multiple):not(.is-loading)::after {
+  border-color: var(--primary);
+}
+
+:root[data-theme="ios-native"] .button.is-primary,
+:root[data-theme="ios-native"] .generate-button {
+  min-height: 50px;
+  border-radius: 12px;
+  box-shadow: none;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+:root[data-theme="ios-native"] .button.is-primary:active,
+:root[data-theme="ios-native"] .month-pill:active {
+  transform: scale(0.98);
+}
+
+:root[data-theme="ios-native"] .action-cell {
+  padding-top: 4px;
+}
+
+:root[data-theme="ios-native"] .action-cell::before {
+  display: none;
+}
+
+:root[data-theme="ios-native"] .month-preview {
+  padding: 14px 16px;
+  border: 0;
+  border-left: 0;
+  border-radius: var(--component-radius);
+  background: #e5f1ff;
+  color: var(--primary-soft-text);
+}
+
+:root[data-theme="ios-native"] .holiday-config {
+  padding: 16px;
+}
+
+:root[data-theme="ios-native"] .holiday-config-header {
+  margin-bottom: 12px;
+}
+
+:root[data-theme="ios-native"] .holiday-list {
+  grid-template-columns: 1fr;
+  gap: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #f2f2f7;
+}
+
+:root[data-theme="ios-native"] .holiday-option {
+  min-height: 56px;
+  padding: 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+:root[data-theme="ios-native"] .holiday-option + .holiday-option {
+  border-top: 1px solid var(--divider);
+}
+
+:root[data-theme="ios-native"] .holiday-option:hover,
+:root[data-theme="ios-native"] .holiday-option:has(input:checked) {
+  border-color: transparent;
+  background: #e5f1ff;
+}
+
+:root[data-theme="ios-native"] .holiday-option input {
+  accent-color: var(--primary);
+}
+
+:root[data-theme="ios-native"] .results-panel .panel-heading {
+  margin-bottom: 12px;
+}
+
+:root[data-theme="ios-native"] .summary-options {
+  gap: 0;
+  overflow: hidden;
+  border-radius: var(--component-radius);
+  background: var(--paper);
+}
+
+:root[data-theme="ios-native"] .summary-card {
+  padding: 16px;
+  border-radius: 0;
+}
+
+:root[data-theme="ios-native"] .summary-card + .summary-card {
+  border-top: 1px solid var(--divider);
+}
+
+:root[data-theme="ios-native"] .copy-option-button.button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 9px;
+  background: #e5f1ff;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+:root[data-theme="ios-native"] .summary-metric {
+  padding: 12px 0;
+}
+
+:root[data-theme="ios-native"] .summary-metric span {
+  font-weight: 400;
+}
+
+:root[data-theme="ios-native"] .summary-metric strong {
+  font-weight: 600;
+}
+
+:root[data-theme="ios-native"] .toast-message {
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  border-radius: 14px;
+  background: rgba(28, 28, 30, 0.92);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(16px);
+}
+
+@media (max-width: 760px) {
+  :root[data-theme="ios-native"] .app-shell {
+    width: min(100% - 28px, 620px);
+    padding: 20px 0 32px;
+  }
+
+  :root[data-theme="ios-native"] .hero {
+    padding: 6px 4px 24px;
+  }
+
+  :root[data-theme="ios-native"] h1 {
+    font-size: 2rem;
+  }
+
+  :root[data-theme="ios-native"] .holiday-list {
+    grid-template-columns: 1fr;
   }
 }
