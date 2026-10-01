@@ -15,9 +15,6 @@ const months = [
 
 const HOLIDAY_YEAR_MIN = 2010
 const HOLIDAY_YEAR_MAX = 2026
-// Change this value to switch themes without adding user-facing controls.
-const APP_THEME = "yellow-green"
-const APP_THEMES = new Set(["default", "yellow-green", "ios-native"])
 
 const elements = {
   workspace: document.querySelector(".app-workspace"),
@@ -49,9 +46,10 @@ let cities = []
 let holidayCache = new Map()
 let applicableHolidays = []
 let activeHolidayDates = new Set()
+let holidayRequestId = 0
+let pendingHolidayUpdate = Promise.resolve()
 
 async function init() {
-  applyTheme(APP_THEME)
   populateMonths()
   selectMonth(new Date().getMonth() + 1)
   elements.year.value = new Date().getFullYear().toString()
@@ -73,11 +71,9 @@ async function init() {
   elements.holidayList.addEventListener("change", updateActiveHolidayDatesFromInputs)
   elements.hourlyRate.addEventListener("input", handleHourlyRateInput)
   elements.summaries.addEventListener("click", handleSummaryAction)
+  elements.form.addEventListener("input", markResultsStale)
+  elements.form.addEventListener("change", markResultsStale)
   updateHolidayConfig()
-}
-
-function applyTheme(themeName) {
-  document.documentElement.dataset.theme = APP_THEMES.has(themeName) ? themeName : "default"
 }
 
 function populateMonths() {
@@ -87,7 +83,10 @@ function populateMonths() {
     button.className = "month-pill"
     button.dataset.month = month.value
     button.setAttribute("role", "radio")
+    button.setAttribute("aria-label", month.name)
     button.setAttribute("aria-checked", "false")
+    button.tabIndex = -1
+    button.addEventListener("keydown", handleMonthKeys)
     button.innerHTML = `<span>${month.name.slice(0, 3)}</span><strong>${month.name}</strong>`
     button.addEventListener("click", () => selectMonth(month.value))
     elements.monthPills.append(button)
@@ -102,8 +101,10 @@ function selectMonth(monthValue) {
     const isSelected = pill.dataset.month === elements.month.value
     pill.classList.toggle("active", isSelected)
     pill.setAttribute("aria-checked", isSelected.toString())
+    pill.tabIndex = isSelected ? 0 : -1
   }
 
+  markResultsStale()
   updateMonthPreview()
   updateHolidayConfig()
 }
@@ -168,12 +169,12 @@ function populateCities(uf, preferredCityCode = "") {
 }
 
 function canLoadHolidays() {
-  const year = Number.parseInt(elements.year.value, 10)
+  const year = Number(elements.year.value)
   return (
     elements.month.value &&
     elements.state.value &&
     elements.city.value &&
-    !Number.isNaN(year) &&
+    Number.isInteger(year) &&
     year >= HOLIDAY_YEAR_MIN &&
     year <= HOLIDAY_YEAR_MAX
   )
@@ -278,7 +279,7 @@ function getDaysInMonth(month, year) {
 
 function updateMonthPreview() {
   const selectedMonth = elements.month.value
-  const year = Number.parseInt(elements.year.value, 10)
+  const year = Number(elements.year.value)
 
   if (!selectedMonth || Number.isNaN(year)) {
     elements.monthPreview.classList.add("is-hidden")
@@ -290,10 +291,8 @@ function updateMonthPreview() {
   const dayCount = getDaysInMonth(Number.parseInt(selectedMonth, 10), year)
 
   elements.monthPreview.classList.remove("is-hidden")
-  elements.monthPreview.innerHTML = `
-    <strong>${month.name} ${year}</strong>
-    ${dayCount} total days.
-  `
+  elements.monthPreview.innerHTML = `<strong>${month.name} <span>${year}</span></strong><span>${dayCount} DAYS</span>`
+  renderCalendar()
 }
 
 async function handleGenerate(event) {
@@ -306,7 +305,7 @@ async function handleGenerate(event) {
   }
 
   const monthNumber = Number.parseInt(elements.month.value, 10)
-  const yearNumber = Number.parseInt(elements.year.value, 10)
+  const yearNumber = Number(elements.year.value)
   let firstInvalidControl = null
 
   if (Number.isNaN(monthNumber)) {
@@ -314,7 +313,7 @@ async function handleGenerate(event) {
     firstInvalidControl = elements.monthPills.querySelector(".month-pill")
   }
 
-  if (Number.isNaN(yearNumber) || yearNumber < HOLIDAY_YEAR_MIN || yearNumber > HOLIDAY_YEAR_MAX) {
+  if (!Number.isInteger(yearNumber) || yearNumber < HOLIDAY_YEAR_MIN || yearNumber > HOLIDAY_YEAR_MAX) {
     setFieldError("year", `Enter a year from ${HOLIDAY_YEAR_MIN} to ${HOLIDAY_YEAR_MAX}.`)
     firstInvalidControl ||= elements.year
   }
@@ -332,9 +331,7 @@ async function handleGenerate(event) {
   setGenerateLoading(true)
 
   try {
-    if (!applicableHolidays.length && canLoadHolidays()) {
-      await updateHolidayConfig()
-    }
+    await pendingHolidayUpdate
     updateActiveHolidayDatesFromInputs()
 
     const generatedOptions = Array.from({ length: 10 }, (_, index) =>
@@ -342,7 +339,7 @@ async function handleGenerate(event) {
     )
     scheduleOptions = [selectBestScheduleOption(generatedOptions)]
     renderResults()
-    showToast("Generated 10 schedules and selected the best one.")
+    showToast("Schedule generated.")
   } finally {
     setGenerateLoading(false)
   }
@@ -383,6 +380,7 @@ function clearAllFieldErrors() {
 }
 
 function setGenerateLoading(isLoading) {
+  elements.generateButton.querySelector(".generate-label").textContent = isLoading ? "Generating…" : "Generate schedule"
   elements.generateButton.disabled = isLoading
   elements.generateButton.classList.toggle("is-loading", isLoading)
   elements.generateButton.setAttribute("aria-busy", isLoading.toString())
@@ -422,6 +420,10 @@ function generateScheduleOption(optionNumber, monthNumber, yearNumber) {
     rawValues: lines.join("\n"),
     totalWorkMinutes,
     totalEarnings,
+    monthNumber,
+    yearNumber,
+    workDaysCount,
+    weekdayHolidayCount,
     summary: buildSummary(totalWorkMinutes, workDaysCount, weekdayHolidayCount, totalEarnings),
   }
 }
@@ -432,26 +434,35 @@ function selectBestScheduleOption(options) {
   )
 }
 
-async function updateHolidayConfig() {
+function updateHolidayConfig() {
+  pendingHolidayUpdate = refreshHolidayConfig()
+  return pendingHolidayUpdate
+}
+
+async function refreshHolidayConfig() {
+  const requestId = ++holidayRequestId
   if (!canLoadHolidays()) {
     applicableHolidays = []
     activeHolidayDates = new Set()
     elements.holidayConfig.classList.add("is-hidden")
     elements.holidayList.innerHTML = ""
     elements.holidayCount.textContent = "0 holidays"
+    renderCalendar()
     return
   }
 
-  const year = Number.parseInt(elements.year.value, 10)
+  const year = Number(elements.year.value)
   const month = Number.parseInt(elements.month.value, 10)
 
-  applicableHolidays = await loadApplicableHolidays(
+  const loadedHolidays = await loadApplicableHolidays(
     year,
     month,
     elements.state.value,
     Number(elements.city.value),
   )
 
+  if (requestId !== holidayRequestId) return
+  applicableHolidays = loadedHolidays
   renderHolidayConfig()
   updateActiveHolidayDatesFromInputs()
 }
@@ -535,8 +546,8 @@ function renderHolidayConfig() {
         <label class="holiday-option" for="${inputId}">
           <input id="${inputId}" type="checkbox" value="${holiday.date}" checked>
           <span class="holiday-option-body">
-            <strong>${escapeHtml(holiday.date)} - ${escapeHtml(holiday.names.join(" / "))}</strong>
-            <small>${escapeHtml(holiday.scopes.join(", "))}</small>
+            <strong>${escapeHtml(holiday.names.join(" / "))}</strong>
+            <small>${escapeHtml(holiday.date)} · ${escapeHtml(holiday.scopes.join(", "))}</small>
           </span>
         </label>
       `
@@ -550,6 +561,7 @@ function updateActiveHolidayDatesFromInputs() {
       (input) => input.value,
     ),
   )
+  renderCalendar()
 }
 
 function escapeHtml(value) {
@@ -596,43 +608,45 @@ function buildSummary(totalWorkMinutes, workDaysCount, weekdayHolidayCount, tota
 function renderResults() {
   elements.results.classList.remove("is-hidden")
   elements.workspace.classList.add("has-results")
-  elements.summaries.innerHTML = scheduleOptions
-    .map(
-      (option) => `
-      <article class="summary-card">
-        <div class="summary-card-header">
-          <button class="button is-light copy-option-button" type="button" data-option-id="${option.id}">
-            <span class="icon" aria-hidden="true">
-              <i class="fa-solid fa-clipboard"></i>
-            </span>
-            Copy
-          </button>
-        </div>
-        <div class="metrics-divider" aria-hidden="true"></div>
-        <div class="summary">
-          ${option.summary.metrics
-            .map(
-              ([label, value, className]) => `
-                <div class="summary-metric ${className || ""}">
-                  <span>${label}</span>
-                  <strong>${value}</strong>
-                </div>
-              `,
-            )
-            .join("")}
-        </div>
-      </article>
-    `,
-    )
-    .join("")
+  const option = scheduleOptions[0]
+  const monthName = months.find((month) => Number(month.value) === option.monthNumber).name
+  const dailyAverage = option.workDaysCount ? Math.round(option.totalWorkMinutes / option.workDaysCount) : 0
+  const rows = option.rawValues.split("\n").map((line, index) => {
+    const values = line ? line.split("\t").map((time) => time.slice(0, 5)) : []
+    return `<tr class="${line ? "" : "off-row"}"><td>${String(index + 1).padStart(2, "0")}</td>${line ? values.map((time) => `<td>${time}</td>`).join("") : '<td colspan="4">Day off</td>'}</tr>`
+  }).join("")
+  elements.summaries.innerHTML = `
+    <article class="summary-card">
+      <p class="stale-notice is-hidden" role="status">Settings changed. Generate again to update.</p>
+      <div class="summary">
+        <div class="summary-metric"><span>TOTAL WORK TIME</span><strong>${minutesToHours(option.totalWorkMinutes)}</strong></div>
+        <div class="summary-metric"><span>WORKDAYS</span><strong>${option.workDaysCount}</strong></div>
+        <div class="summary-metric"><span>DAILY AVERAGE</span><strong>${minutesToHours(dailyAverage)}</strong></div>
+        <div class="summary-metric"><span>SCHEDULE FOR</span><strong>${monthName.slice(0, 3)} ${option.yearNumber}</strong></div>
+        <div class="summary-metric summary-metric-highlight"><span>ESTIMATED EARNINGS</span><strong id="earningsValue">${formatCurrency(Math.round(option.totalEarnings * 100))}</strong></div>
+      </div>
+      <div class="result-actions"><button class="copy-option-button" type="button" data-option-id="${option.id}"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg>Copy for spreadsheet</button><button class="download-button" type="button" data-option-id="${option.id}" aria-label="Download schedule as CSV" title="Download CSV"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg></button></div>
+      <details class="result-disclosure"><summary>View all time entries</summary><div class="schedule-table-wrap"><table class="schedule-table"><caption class="sr-only">${monthName} ${option.yearNumber} generated time entries</caption><thead><tr><th scope="col">Day</th><th scope="col">In</th><th scope="col">Lunch</th><th scope="col">Back</th><th scope="col">Out</th></tr></thead><tbody>${rows}</tbody></table></div></details>
+    </article>`
+  animateEarnings(option.totalEarnings)
+  if (window.innerWidth <= 650) elements.results.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "center" })
 }
 
 function handleSummaryAction(event) {
-  const button = event.target.closest(".copy-option-button")
+  const button = event.target.closest(".copy-option-button, .download-button")
   if (!button) return
-
   const option = scheduleOptions.find((item) => item.id === Number(button.dataset.optionId))
-  if (option) {
+  if (!option) return
+  if (button.classList.contains("download-button")) {
+    const csv = ["Day,Clock in,Lunch out,Lunch back,Clock out", ...option.rawValues.split("\n").map((line, index) => `${index + 1},${line ? line.replace(/\t/g, ",") : ",,,"}`)].join("\r\n")
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }))
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `schedule-${option.yearNumber}-${String(option.monthNumber).padStart(2, "0")}.csv`
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    showToast("CSV downloaded.")
+  } else {
     copyToClipboard(option.rawValues, option.summary.copyTitle, button)
   }
 }
@@ -643,7 +657,7 @@ async function copyToClipboard(values, title, button) {
   try {
     await navigator.clipboard.writeText(values)
     showCopyConfirmation(button)
-    showToast(`${title} copied. Ready to paste into Excel.`)
+    showToast(`${title} copied.`)
   } catch {
     const textarea = document.createElement("textarea")
     textarea.value = values
@@ -652,10 +666,14 @@ async function copyToClipboard(values, title, button) {
     textarea.style.opacity = "0"
     document.body.append(textarea)
     textarea.select()
-    document.execCommand("copy")
+    const copied = document.execCommand("copy")
     textarea.remove()
-    showCopyConfirmation(button)
-    showToast(`${title} copied.`)
+    if (copied) {
+      showCopyConfirmation(button)
+      showToast(`${title} copied.`)
+    } else {
+      showToast("Copy is unavailable in this browser. Download the CSV instead.", true)
+    }
   }
 }
 
@@ -665,8 +683,8 @@ function showCopyConfirmation(button) {
   const originalMarkup = button.innerHTML
   button.disabled = true
   button.innerHTML = `
-    <span class="icon" aria-hidden="true"><i class="fa-solid fa-check"></i></span>
-    Copied
+    <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>
+    Copied to clipboard
   `
 
   window.setTimeout(() => {
@@ -684,6 +702,69 @@ function showToast(message, isError = false) {
   toastTimer = window.setTimeout(() => {
     elements.toast.classList.remove("show")
   }, 2800)
+}
+
+function markResultsStale() {
+  elements.results.querySelector(".stale-notice")?.classList.remove("is-hidden")
+}
+
+function handleMonthKeys(event) {
+  const keys = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"]
+  if (!keys.includes(event.key)) return
+  event.preventDefault()
+  const columns = getComputedStyle(elements.monthPills).gridTemplateColumns.split(" ").length
+  const offsets = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -columns, ArrowDown: columns }
+  const current = Number(elements.month.value) - 1
+  const next = event.key === "Home" ? 0 : event.key === "End" ? 11 : (current + offsets[event.key] + 12) % 12
+  selectMonth(next + 1)
+  elements.monthPills.children[next].focus()
+}
+
+function renderCalendar() {
+  const month = Number(elements.month.value)
+  const year = Number(elements.year.value)
+  const grid = document.querySelector("#calendarGrid")
+  if (!month || !Number.isInteger(year) || year < HOLIDAY_YEAR_MIN || year > HOLIDAY_YEAR_MAX) {
+    grid.innerHTML = '<p class="calendar-unavailable">Choose a year from 2010–2026 to preview your month.</p>'
+    document.querySelector("#workdayCount").textContent = "—"
+    document.querySelector("#dayoffCount").textContent = "—"
+    return
+  }
+  const dayCount = getDaysInMonth(month, year)
+  const offset = (new Date(year, month - 1, 1).getDay() + 6) % 7
+  const today = new Date()
+  let workdays = 0
+  let markup = '<span class="calendar-day calendar-blank" aria-hidden="true"></span>'.repeat(offset)
+  for (let day = 1; day <= dayCount; day++) {
+    const date = new Date(year, month - 1, day)
+    const weekend = date.getDay() === 0 || date.getDay() === 6
+    const holiday = activeHolidayDates.has(formatHolidayDate(day, month, year))
+    const isToday = today.getFullYear() === year && today.getMonth() + 1 === month && today.getDate() === day
+    if (!weekend && !holiday) workdays++
+    const dayLabel = `${months[month - 1].name} ${day}: ${holiday ? "Holiday" : weekend ? "Day off" : "Workday"}`
+    markup += `<span class="calendar-day ${weekend ? "day-off" : ""} ${holiday ? "holiday" : ""} ${isToday ? "today" : ""}" role="listitem" aria-label="${dayLabel}" style="--delay:${day * .008}s">${day}</span>`
+  }
+  grid.innerHTML = markup
+  document.querySelector("#workdayCount").textContent = workdays
+  document.querySelector("#dayoffCount").textContent = dayCount - workdays
+  const city = elements.city.selectedOptions[0]?.textContent
+  const state = elements.state.value
+  document.querySelector("#locationPreview").textContent = city ? `${city}, ${state} · Brazil` : "Brazilian holiday calendar"
+}
+
+function animateEarnings(amount) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+  const target = document.querySelector("#earningsValue")
+  const started = performance.now()
+  const step = (now) => {
+    if (!target.isConnected) return
+    const progress = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? 1
+      : Math.min((now - started) / 850, 1)
+    target.textContent = formatCurrency(Math.round(amount * 100 * (1 - (1 - progress) ** 3)))
+    if (progress < 1) requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
 }
 
 init()

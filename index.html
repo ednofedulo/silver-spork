@@ -1,181 +1,68 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Work Schedule Generator</title>
-    <meta
-      name="description"
-      content="Generate realistic monthly work schedule time entries for spreadsheets."
-    >
-    <link
-      href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css"
-      rel="stylesheet"
-    >
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
-    >
-    <link
-      rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%232557d6'/%3E%3Cpath d='M32 13a19 19 0 1 0 0 38 19 19 0 0 0 0-38Zm0 6a13 13 0 1 1 0 26 13 13 0 0 1 0-26Zm3 6h-6v10l9 6 3-5-6-4V25Z' fill='white'/%3E%3C/svg%3E"
-    >
-    <link rel="stylesheet" href="src/styles.css?v=20260831">
-  </head>
-  <body>
-    <main class="app-shell">
-      <section class="hero">
-        <div>
-          <p class="eyebrow">Timesheet utility</p>
-          <h1>Work Schedule Generator</h1>
-          <p class="hero-copy">
-            Generate weekday time entries with natural clock-in, lunch, and
-            clock-out variation, then copy the best generated schedule straight
-            into Excel.
-          </p>
-        </div>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f3eb">
+  <meta name="description" content="Generate monthly work schedules with local holidays and spreadsheet export.">
+  <title>Work Schedule Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23233d32'/%3E%3Cpath d='M32 8 40 24 56 32 40 40 32 56 24 40 8 32 24 24Z' fill='%23d5ec73'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="src/styles.css?v=20261001-functional-motion">
+</head>
+<body>
+  <a class="skip-link" href="#studio">Skip to schedule builder</a>
+  <svg class="svg-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M19 10c0 6-7 11-7 11S5 16 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2"/></symbol>
+  </svg>
+  <main id="studio" class="studio app-shell">
+    <div class="app-workspace">
+      <section class="panel config-panel" aria-labelledby="configTitle">
+        <div class="panel-heading"><h1 id="configTitle">Work schedule</h1><span class="tag"><span class="status-dot"></span> Weekdays only</span></div>
+        <form id="scheduleForm" class="form-stack" novalidate>
+          <div class="field-card month-card">
+            <div class="field-heading"><span class="form-label" id="monthLabel">Month</span></div>
+            <input id="month" type="hidden" required>
+            <div id="monthPills" class="month-pills" role="radiogroup" aria-labelledby="monthLabel" aria-describedby="monthError"></div>
+            <p id="monthError" class="form-error is-hidden" role="alert"></p>
+          </div>
+          <div class="field-card location-card">
+            <div class="field-heading"><h2 class="form-label">Location &amp; rate</h2></div>
+            <div class="control-grid">
+              <div class="compact-field-card"><label for="state" class="input-label">State</label><div class="control-shell"><select id="state" required aria-label="State"></select></div></div>
+              <div class="compact-field-card"><label for="city" class="input-label">City</label><div class="control-shell"><select id="city" required aria-label="City"></select></div></div>
+              <div class="compact-field-card field-card"><label for="year" class="input-label">Year</label><div class="control-shell"><input id="year" type="number" min="2010" max="2026" placeholder="2026" aria-describedby="yearError" required></div><p id="yearError" class="form-error is-hidden" role="alert"></p></div>
+              <div class="compact-field-card field-card"><label for="hourlyRate" class="input-label">Hourly rate <span class="currency-label">USD</span></label><div class="control-shell rate-shell"><input id="hourlyRate" type="text" inputmode="numeric" autocomplete="off" placeholder="$0.00" aria-describedby="rateError" required><span aria-hidden="true">/ hr</span></div><p id="rateError" class="form-error is-hidden" role="alert"></p></div>
+            </div>
+          </div>
+          <section id="holidayConfig" class="holiday-config is-hidden" aria-labelledby="holidayTitle">
+            <div class="field-heading"><h2 id="holidayTitle" class="form-label">Holidays</h2><span id="holidayCount" class="field-note">0 holidays</span></div>
+            <p class="holiday-hint">Exclude selected holidays.</p><div id="holidayList" class="holiday-list"></div>
+          </section>
+          <div class="action-cell"><button id="generateButton" class="generate-button" type="submit"><span class="generate-label">Generate schedule</span><span class="button-spinner" aria-hidden="true"></span><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
+        </form>
       </section>
-
-      <div class="app-workspace">
-        <section class="panel config-panel">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">Setup</p>
-              <h2>Schedule Configuration</h2>
-            </div>
-            <span class="tag is-light">Weekdays only</span>
-          </div>
-
-          <form id="scheduleForm" class="form-stack" novalidate>
-            <div>
-              <div class="field-card month-card">
-                <div class="form-label">Month</div>
-                <input id="month" type="hidden" required>
-                <div
-                  id="monthPills"
-                  class="month-pills"
-                  role="radiogroup"
-                  aria-label="Month"
-                  aria-describedby="monthError"
-                ></div>
-                <p id="monthError" class="form-error is-hidden" role="alert"></p>
-              </div>
-            </div>
-
-            <div>
-              <div class="control-grid">
-                <div class="field-card compact-field-card state-field">
-                  <label for="state" class="form-label">State</label>
-                  <div class="control-shell compact-control">
-                    <span class="control-icon" aria-hidden="true">
-                      <i class="fa-solid fa-location-dot"></i>
-                    </span>
-                    <div class="select is-fullwidth pretty-select">
-                      <select id="state" class="pretty-control" required></select>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="field-card compact-field-card city-field">
-                  <label for="city" class="form-label">City</label>
-                  <div class="control-shell compact-control">
-                    <span class="control-icon" aria-hidden="true">
-                      <i class="fa-solid fa-city"></i>
-                    </span>
-                    <div class="select is-fullwidth pretty-select">
-                      <select id="city" class="pretty-control" required></select>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="field-card compact-field-card year-field">
-                  <label for="year" class="form-label">Year</label>
-                  <div class="control-shell compact-control">
-                    <span class="control-icon" aria-hidden="true">
-                      <i class="fa-solid fa-calendar-week"></i>
-                    </span>
-                    <input
-                      id="year"
-                      class="input pretty-control"
-                      type="number"
-                      min="2010"
-                      max="2026"
-                      placeholder="Enter year"
-                      aria-describedby="yearError"
-                      required
-                    >
-                  </div>
-                  <p id="yearError" class="form-error is-hidden" role="alert"></p>
-                </div>
-
-                <div class="field-card compact-field-card rate-field">
-                  <label for="hourlyRate" class="form-label">Hourly Rate</label>
-                  <div class="control-shell compact-control">
-                    <span class="control-icon money-icon" aria-hidden="true">
-                      <i class="fa-solid fa-money-bill-wave"></i>
-                    </span>
-                    <input
-                      id="hourlyRate"
-                      class="input pretty-control"
-                      type="text"
-                      inputmode="numeric"
-                      autocomplete="off"
-                      placeholder="$0.00"
-                      aria-describedby="rateError"
-                      required
-                    >
-                  </div>
-                  <p id="rateError" class="form-error is-hidden" role="alert"></p>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <div id="monthPreview" class="month-preview is-hidden" aria-live="polite"></div>
-            </div>
-
-            <div>
-              <section id="holidayConfig" class="holiday-config is-hidden" aria-live="polite">
-                <div class="holiday-config-header">
-                  <div>
-                    <p class="eyebrow">Holidays</p>
-                    <h3>Apply Holidays</h3>
-                  </div>
-                  <span id="holidayCount" class="tag is-light">0 holidays</span>
-                </div>
-                <div id="holidayList" class="holiday-list"></div>
-              </section>
-            </div>
-
-            <div class="action-cell">
-              <button
-                id="generateButton"
-                class="button is-primary is-large is-fullwidth generate-button"
-                type="submit"
-              >
-                <span class="icon" aria-hidden="true">
-                  <i class="fa-solid fa-wand-magic-sparkles"></i>
-                </span>
-                Generate Work Schedule
-              </button>
-            </div>
-          </form>
+      <aside class="preview-column">
+        <section class="calendar-panel" aria-labelledby="calendarTitle">
+          <h2 id="calendarTitle" class="calendar-heading">Calendar</h2>
+          <div id="monthPreview" class="month-preview" aria-live="polite"></div>
+          <div class="calendar-weekdays" aria-hidden="true"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+          <div id="calendarGrid" class="calendar-grid" role="list" aria-label="Days of the selected month"></div>
+          <div class="calendar-legend"><span><i class="legend-work"></i> Workday</span><span><i class="legend-off"></i> Day off</span><span><i class="legend-holiday"></i> Holiday</span></div>
+          <div class="month-stats"><div><strong id="workdayCount">—</strong><span>Workdays</span></div><div><strong id="dayoffCount">—</strong><span>Days off</span></div></div>
+          <div class="calendar-note"><svg class="icon" aria-hidden="true"><use href="#i-pin"/></svg><span id="locationPreview">São Paulo, Brazil</span></div>
         </section>
-
-        <section id="results" class="panel results-panel is-hidden" aria-live="polite">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">Results</p>
-              <h2>Generated Schedule</h2>
-            </div>
-            <span class="tag is-light tag-accent">Best of 10</span>
-          </div>
-          <div id="summaries" class="summary-options"></div>
-        </section>
-      </div>
-    </main>
-
-    <div id="toast" class="toast-message" role="status" aria-live="polite"></div>
-    <script src="src/app.js?v=20260831"></script>
-  </body>
+        <section id="results" class="results-panel is-hidden" aria-live="polite" aria-labelledby="resultTitle"><div class="panel-heading"><div><h2 id="resultTitle">Generated schedule</h2></div><span class="tag">Best of 10</span></div><div id="summaries"></div></section>
+      </aside>
+    </div>
+  </main>
+  <div id="toast" class="toast-message" role="status" aria-live="polite"></div>
+  <script src="src/app.js?v=20261001-functional-motion"></script>
+</body>
 </html>

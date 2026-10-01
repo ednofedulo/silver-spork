@@ -1,23 +1,24 @@
 # Work Schedule Generator
 
-A dependency-light timesheet utility built with vanilla JavaScript, Bootstrap, and custom CSS.
+A vanilla JavaScript timesheet utility. No build step or runtime dependencies.
 
 ## Run
-
-Start a local server:
 
 ```sh
 npm run dev
 ```
 
-Then visit `http://localhost:3000`.
+Visit `http://localhost:3000`.
 
 ## Features
 
-- Generates weekday-only clock-in, lunch-out, lunch-back, and clock-out entries.
-- Keeps one blank line for each weekend and selected-location holiday so rows line up with the month.
-- Produces tab-separated output for Excel or spreadsheet paste.
-- Generates five schedule options and copies each option's hidden spreadsheet-ready values.
-- Calculates total time, workday count, average daily hours, hourly rate, and earnings.
-- Remembers the optional hourly rate in local storage.
-- Uses local holiday JSON from `joaopbini/feriados-brasil` for national, state, and city holidays from 2010-2026.
+- Generates ten weekday schedules and selects the highest-earning result.
+- Includes national, state, and city holidays in Brazil, with individual holiday toggles.
+- Calendar preview with workday and day-off totals.
+- Copies four tab-separated time columns, preserving blank rows for weekends and selected holidays.
+- Downloads CSV and previews generated time entries.
+- Calculates work time, daily average, and estimated earnings; remembers the hourly rate locally.
+- Responsive layout, keyboard month selection, and field validation.
+- Animated calendar updates, result transitions, earnings counter, and interaction feedback, respecting reduced-motion preferences.
+
+Holiday JSON is vendored from `joaopbini/feriados-brasil` and covers 2010–2026. Rates are formatted in USD. Typography uses Google Fonts with local fallbacks.
